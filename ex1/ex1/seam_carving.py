@@ -21,7 +21,50 @@ def reshape_bilinear(image, new_shape):
     :param new_shape: a (height, width) tuple which is the new shape
     :returns: the image resized to new_shape
     """
-    return new_image
+    new_height, new_width = new_shape
+    old_height, old_width, pixels = image.shape
+    height_ratio = old_height / new_height
+    width_ratio = old_width / new_width
+    new_image = np.zeros([new_height, new_width, pixels])
+    rows, columns, _ = image.shape
+    for row in range(new_height):
+        for column in range(new_width):
+            x = row * height_ratio
+            y = column * width_ratio
+            new_image[row,column] = calculate_bilinear_pixel(image, x, y)
+
+    return np.array(new_image, np.int32)
+
+
+def calculate_bilinear_pixel(image, row, column):
+    """
+    calculate the bilinear pixel in image[row, column]
+    """
+    x_floor = math.floor(row)
+    y_floor = math.floor(column)
+    x_ceil = min( image.shape[0] - 1, math.ceil(row))
+    y_ceil = min(image.shape[1]- 1, math.ceil(column))
+    if (x_ceil == x_floor) and (y_ceil == y_floor):
+        q = image[int(row), int(column)]
+    elif (x_ceil == x_floor):
+        q1 = image[int(row), int(y_floor)]
+        q2 = image[int(row), int(y_ceil)]
+        q = q1 * (y_ceil - column) + q2 * (column - y_floor)
+    elif (y_ceil == y_floor):
+        q1 = image[int(x_floor), int(column)]
+        q2 = image[int(x_ceil), int(column)]
+        q = (q1 * (x_ceil - row)) + (q2	 * (row - x_floor))
+    else:
+        v1 = image[x_floor, y_floor]
+        v2 = image[x_ceil, y_floor]
+        v3 = image[x_floor, y_ceil]
+        v4 = image[x_ceil, y_ceil]
+
+        q1 = v1 * (x_ceil - row) + v2 * (row - x_floor)
+        q2 = v3 * (x_ceil - row) + v4 * (row - x_floor)
+        q = q1 * (y_ceil - column) + q2 * (column - y_floor)
+
+    return q
     
 def gradient_magnitude(image, colour_wts):
     """

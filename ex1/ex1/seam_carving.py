@@ -8,10 +8,57 @@ def get_greyscale_image(image, colour_wts):
     :param colour_wts: the weights of each colour in rgb (ints > 0)
     :returns: the image in greyscale
     """
-    
     greyscale_image = np.matmul(image, colour_wts)
+
     return greyscale_image
     
+
+# def reshape_bilinear(image, new_shape):
+#     """
+#     Resizes an image to new shape using bilinear interpolation method
+#     :param image: The original image
+#     :param new_shape: a (height, width) tuple which is the new shape
+#     :returns: the image resized to new_shape
+#     """
+#     new_height, new_width = new_shape
+#     old_height, old_width, pixels = image.shape
+#     height_ratio = old_height / new_height
+#     width_ratio = old_width / new_width
+#     new_image = np.zeros([new_height, new_width, pixels])
+#     rows, columns, _ = image.shape
+#     for row in range(new_height):
+#         for column in range(new_width):
+#             x = row * height_ratio
+#             y = column * width_ratio
+#             x_floor = math.floor(x)
+#             y_floor = math.floor(y)
+#             # x_ceil = min(math.ceil(x), new_shape[1]-1)
+#             # y_ceil = min(math.ceil(y), new_shape[0]-1)
+#             x_ceil = min( rows - 1, math.ceil(x))
+#             y_ceil = min(columns- 1, math.ceil(y))
+#             if (x_ceil == x_floor) and (y_ceil == y_floor):
+#                 q = image[int(x), int(y), :]
+#             elif (x_ceil == x_floor):
+#                 q1 = image[int(x), int(y_floor), :]
+#                 q2 = image[int(x), int(y_ceil), :]
+#                 q = q1 * (y_ceil - y) + q2 * (y - y_floor)
+#             elif (y_ceil == y_floor):
+#                 q1 = image[int(x_floor), int(y), :]
+#                 q2 = image[int(x_ceil), int(y), :]
+#                 q = (q1 * (x_ceil - x)) + (q2	 * (x - x_floor))
+#             else:
+#                 v1 = image[x_floor, y_floor, :]
+#                 v2 = image[x_ceil, y_floor, :]
+#                 v3 = image[x_floor, y_ceil, :]
+#                 v4 = image[x_ceil, y_ceil, :]
+
+#                 q1 = v1 * (x_ceil - x) + v2 * (x - x_floor)
+#                 q2 = v3 * (x_ceil - x) + v4 * (x - x_floor)
+#                 q = q1 * (y_ceil - y) + q2 * (y - y_floor)
+
+#             new_image[row,column] = q
+
+#     return np.array(new_image, np.int32)
 
 def reshape_bilinear(image, new_shape):
     """
@@ -30,37 +77,40 @@ def reshape_bilinear(image, new_shape):
         for column in range(new_width):
             x = row * height_ratio
             y = column * width_ratio
-            x_floor = math.floor(x)
-            y_floor = math.floor(y)
-            # x_ceil = min(math.ceil(x), new_shape[1]-1)
-            # y_ceil = min(math.ceil(y), new_shape[0]-1)
-            x_ceil = min( rows - 1, math.ceil(x))
-            y_ceil = min(columns- 1, math.ceil(y))
-            if (x_ceil == x_floor) and (y_ceil == y_floor):
-                q = image[int(x), int(y), :]
-            elif (x_ceil == x_floor):
-                q1 = image[int(x), int(y_floor), :]
-                q2 = image[int(x), int(y_ceil), :]
-                q = q1 * (y_ceil - y) + q2 * (y - y_floor)
-            elif (y_ceil == y_floor):
-                q1 = image[int(x_floor), int(y), :]
-                q2 = image[int(x_ceil), int(y), :]
-                q = (q1 * (x_ceil - x)) + (q2	 * (x - x_floor))
-            else:
-                v1 = image[x_floor, y_floor, :]
-                v2 = image[x_ceil, y_floor, :]
-                v3 = image[x_floor, y_ceil, :]
-                v4 = image[x_ceil, y_ceil, :]
-
-                q1 = v1 * (x_ceil - x) + v2 * (x - x_floor)
-                q2 = v3 * (x_ceil - x) + v4 * (x - x_floor)
-                q = q1 * (y_ceil - y) + q2 * (y - y_floor)
-
-            new_image[row,column] = q
+            new_image[row,column] = calculate_bilinear_pixel(image, x, y)
 
     return np.array(new_image, np.int32)
 
 
+def calculate_bilinear_pixel(image, row, column):
+    """
+    calculate the bilinear pixel in image[row, column]
+    """
+    x_floor = math.floor(row)
+    y_floor = math.floor(column)
+    x_ceil = min( image.shape[0] - 1, math.ceil(row))
+    y_ceil = min(image.shape[1]- 1, math.ceil(column))
+    if (x_ceil == x_floor) and (y_ceil == y_floor):
+        q = image[int(row), int(column)]
+    elif (x_ceil == x_floor):
+        q1 = image[int(row), int(y_floor)]
+        q2 = image[int(row), int(y_ceil)]
+        q = q1 * (y_ceil - column) + q2 * (column - y_floor)
+    elif (y_ceil == y_floor):
+        q1 = image[int(x_floor), int(column)]
+        q2 = image[int(x_ceil), int(column)]
+        q = (q1 * (x_ceil - row)) + (q2	 * (row - x_floor))
+    else:
+        v1 = image[x_floor, y_floor]
+        v2 = image[x_ceil, y_floor]
+        v3 = image[x_floor, y_ceil]
+        v4 = image[x_ceil, y_ceil]
+
+        q1 = v1 * (x_ceil - row) + v2 * (row - x_floor)
+        q2 = v3 * (x_ceil - row) + v4 * (row - x_floor)
+        q = q1 * (y_ceil - column) + q2 * (column - y_floor)
+
+    return q
 # def bl_resize(original_img, new_h, new_w):
 # 	#get dimensions of original image
 # 	old_h, old_w, c = original_img.shape

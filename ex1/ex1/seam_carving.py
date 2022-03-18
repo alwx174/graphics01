@@ -1,8 +1,7 @@
-from decimal import Clamped
+from turtle import width
 import numpy as np
 import math
 
-from sympy import Integer
 def get_greyscale_image(image, colour_wts):
     """
     Gets an image and weights of each colour and returns the image in greyscale
@@ -27,6 +26,7 @@ def reshape_bilinear(image, new_shape):
     width_ratio = old_width / new_width
     new_image = np.zeros([new_height, new_width, pixels])
     rows, columns, _ = image.shape
+
     for row in range(new_height):
         for column in range(new_width):
             x = row * height_ratio
@@ -34,7 +34,6 @@ def reshape_bilinear(image, new_shape):
             new_image[row,column] = calculate_bilinear_pixel(image, x, y)
 
     return np.array(new_image, np.int32)
-
 
 def calculate_bilinear_pixel(image, row, column):
     """
@@ -118,6 +117,110 @@ def gradient_magnitude(image, colour_wts):
     
     return gradient
     
+
+def cost_matrix(image, grey_scale_wt):
+    energy_image = gradient_magnitude(image, grey_scale_wt)
+    grey_image = get_greyscale_image(image, grey_scale_wt)
+    height = energy_image.shape[0]
+    width = energy_image.shape[1]
+    m = np.zeros((height, width))
+    energy = np.zeros((height, width))
+
+    for i in range(1, height):
+        for j in range(width):
+            up = (i-1) % height
+            down = (i+1) % height
+            left = (j-1) % width
+            right = (j+1) % width
+    
+            mU = m[up,j]
+            mL = m[up,left]
+            mR = m[up,right]
+                
+            cU = np.abs(grey_image[i,right] - grey_image[i,left])
+            cL = np.abs(grey_image[up,j] - grey_image[i,left]) + cU
+            cR = np.abs(grey_image[up,j] - grey_image[i,right]) + cU
+            
+            cULR = np.array([cU, cL, cR])
+            mULR = np.array([mU, mL, mR]) + cULR
+            
+            argmin = np.argmin(mULR)
+            m[i,j] = mULR[argmin]
+            energy[i,j] = cULR[argmin]
+            
+    return energy
+
+
+def visualise(image, new_shape, show_horizontal, colour):
+    # gray scale scalars
+    greyscale_wt = [0.299, 0.587, 0.114]
+    gradient_image = gradient_magnitude(image, greyscale_wt)
+    grey_image = get_greyscale_image(image, greyscale_wt)
+    resized_image = np.zeros((new_shape[0], new_shape[1], image.shape[2]))
+    edited_image = np.copy(image)
+    seams_to_remove = []
+    if show_horizontal:
+        num_of_horizontal_seams = image.shape[1] - new_shape[1]
+        pass
+    else:
+        num_of_vertical_seams = image.shape[0] - new_shape[0]
+    #    num_of_vertical_seams = image.shape[1] - new_shape[1]
+        if num_of_vertical_seams < 0:
+            return "support only seam removal"
+        for i in range(num_of_vertical_seams):
+            calculated_cost_matrix = cost_matrix(edited_image, greyscale_wt)
+            seam = get_best_seam(calculated_cost_matrix)
+            seams_to_remove.append(seam)
+            edited_image = remove_seam(edited_image, seam)
+     #   seams_to_remove = coordinate_seams_to_real_location(image, seams_to_remove)
+    resized_image = paint_seams(image, seams_to_remove, colour)
+    
+    return resized_image
+
+
+def paint_seams(image, seams_to_remove, colour_to_paint):
+    for seam in seams_to_remove:
+        for place in seam:
+            image[place[0], place[1]] = colour_to_paint
+    return image
+
+def coordinate_seams_to_real_location(image, seams_to_remove):
+    placement = np.zeros((image.shape[0], image.shape[1]))
+    real_seams = []
+    for seam in seams_to_remove:
+        for row,column in seam:
+#            new_seam =  
+            placement[row,column] += 1
+    pass
+
+
+def remove_seam(image, seam):
+    mask = np.ones(image.shape, dtype=bool)
+    for pixel in seam:
+        mask[pixel[0], pixel[1]] = False
+    image = image[mask].reshape(image.shape[0],image.shape[1] - 1, image.shape[2])
+    return image
+
+
+
+def get_best_seam(calculated_cost_matrix):
+    seam = []
+    height = calculated_cost_matrix.shape[0]
+    width = calculated_cost_matrix.shape[1]
+    best_column = np.argmin(calculated_cost_matrix[height - 1])
+    seam.append([height-1, best_column])
+    for row in range(height -2, -1, -1):
+        if best_column == 0:
+            best_column += np.argmin(calculated_cost_matrix[row, best_column : best_column + 2])
+        elif best_column == (height -1):
+            best_column += np.argmin(calculated_cost_matrix[row, best_column -1 : best_column +1])
+        else:
+            best_column += np.argmin(calculated_cost_matrix[row, (best_column -1): (best_column + 2)]) - 1
+        seam.append([row,best_column])
+    
+    return seam
+
+
 def visualise_seams(image, new_shape, show_horizontal, colour):
     """
     Visualises the seams that would be removed when reshaping an image to new image (see example in notebook)
@@ -140,6 +243,7 @@ def visualise_seams(image, new_shape, show_horizontal, colour):
     
     num_of_rows = gradient_matrix.shape[0]
     num_of_cols = gradient_matrix.shape[1]
+    
 
     # calculate cheapest paths matrix using dynamic programming
     for row in range(1, num_of_rows):

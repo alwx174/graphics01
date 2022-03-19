@@ -1,6 +1,7 @@
-from turtle import width
+import matplotlib.image as mp
 import numpy as np
 import math
+import matplotlib.pyplot as plt
 
 def get_greyscale_image(image, colour_wts):
     """
@@ -73,9 +74,6 @@ def gradient_magnitude(image, colour_wts):
     :returns: The gradient image
     """
     greyscale = get_greyscale_image(image, colour_wts)
-    # greyscale = np.array([[1, 2, 6], [3, 4, 5], [5,6,7]])
-    # test = np.square(np.gradient(np.array([[1, 2, 6], [3, 4, 5], [5,6,7]], dtype=float), axis=1)) + np.square(np.gradient(np.array([[1, 2, 6], [3, 4, 5], [5,6,7]], dtype=float), axis=0))
-    # test = np.sqrt(test)
 
     # moving the rows to prepare I(x+1,y) and I(x, y+1)
     x_forward = np.roll(greyscale, -1 ,axis=0)
@@ -84,115 +82,139 @@ def gradient_magnitude(image, colour_wts):
     top_x = (y_forward - greyscale)
     top_y = (x_forward - greyscale)
 
-    # top_x = ((y_forward - greyscale) + 255) * 1/2
-    # top_y = ((x_forward - greyscale) + 255) * 1/2
-
     # perform addition,square and root of gradient to calculate gradient magnitude
     top_x, top_y = np.square(top_x), np.square(top_y)
     final_res = top_x + top_y
     final_res = np.sqrt(final_res)
-    # final_res = (final_res + 150) * (1/2)
+
     gradient = final_res
-
-    # hieght, width = greyscale.shape
-    # tt = np.zeros(greyscale.shape)
-    # for i in range(hieght-1):
-    #     for j in range(width-1):
-    #         tt[i,j] = np.square(greyscale[i+1, j] - greyscale[i, j])
-    #         tt[i,j] += np.square(greyscale[i, j+1] - greyscale[i, j])
-    #         tt[i,j] = np.sqrt(tt[i, j])
-
-    # gradient = np.gradient(greyscale, axis=1) + np.gradient(greyscale, axis=0)
-    # gradient = np.square(np.gradient(greyscale, axis=1)) + np.square(np.gradient(greyscale, axis=0))
-    # gradient = np.sqrt(gradient)
-    # print(2)
-    # index_mat_x = np.ones(greyscale.shape[0])
-    # for i in range(greyscale.shape[0]):
-    #     if i == 0 or i == 1:
-    #         continue
-    #     index_mat_x = np.column_stack((index_mat_x, np.ones(greyscale.shape[0])*i))
-    # np.roll(np.power(test.A, -1*np.ones(test.A.shape)), 1,axis=0)
-    ###Your code here###
-    ###**************###
     
     return gradient
     
 
 def cost_matrix(image, grey_scale_wt):
-    energy_image = gradient_magnitude(image, grey_scale_wt)
-    grey_image = get_greyscale_image(image, grey_scale_wt)
-    height = energy_image.shape[0]
-    width = energy_image.shape[1]
-    m = np.zeros((height, width))
-    energy = np.zeros((height, width))
 
-    for i in range(1, height):
-        for j in range(width):
-            up = (i-1) % height
-            down = (i+1) % height
-            left = (j-1) % width
-            right = (j+1) % width
-    
-            mU = m[up,j]
-            mL = m[up,left]
-            mR = m[up,right]
-                
-            cU = np.abs(grey_image[i,right] - grey_image[i,left])
-            cL = np.abs(grey_image[up,j] - grey_image[i,left]) + cU
-            cR = np.abs(grey_image[up,j] - grey_image[i,right]) + cU
-            
-            cULR = np.array([cU, cL, cR])
-            mULR = np.array([mU, mL, mR]) + cULR
-            
-            argmin = np.argmin(mULR)
-            m[i,j] = mULR[argmin]
-            energy[i,j] = cULR[argmin]
-            
-    return energy
-
-
-def visualise(image, new_shape, show_horizontal, colour):
     # gray scale scalars
     greyscale_wt = [0.299, 0.587, 0.114]
-    gradient_image = gradient_magnitude(image, greyscale_wt)
+
+    # recieve gradient matrix
+    gradient_matrix = gradient_magnitude(image, greyscale_wt)
     grey_image = get_greyscale_image(image, greyscale_wt)
-    resized_image = np.zeros((new_shape[0], new_shape[1], image.shape[2]))
+    
+    num_of_rows = gradient_matrix.shape[0]
+    num_of_cols = gradient_matrix.shape[1]
+
+    # calculate cheapest paths matrix using dynamic programming
+    for row in range(1, num_of_rows):
+    
+        for col in range(num_of_cols ):
+            C_u = 0
+            # when pixel is in the leftmost col
+            if col == 0:
+                C_r = abs(grey_image[row-1,col] - grey_image[row,col+1]) + abs(grey_image[row,num_of_cols-1] - grey_image[row,col+1])
+                val = (gradient_matrix[row-1,col+1] + C_r,)
+            # when pixel is in the rightmost col
+            elif col == (num_of_cols - 1):
+                C_l = abs(grey_image[row-1,col] - grey_image[row,col-1]) + abs(grey_image[row,col-1] - grey_image[row,0])
+                val = (gradient_matrix[row-1,col-1] + C_l,)
+            # when pixel is in the middle
+            else:
+                # calculate forward cost
+                C_u = abs(grey_image[row,col-1] - grey_image[row,col+1])
+                C_l = C_u + abs(grey_image[row-1,col] - grey_image[row,col-1])
+                C_r = C_u + abs(grey_image[row-1,col] - grey_image[row,col+1])
+                val = (gradient_matrix[row-1,col+1] + C_r, gradient_matrix[row-1,col-1] + C_l)
+            
+            min_val = min(gradient_matrix[row-1,col] + C_u, *val)
+            gradient_matrix[row,col] += min_val
+    return gradient_matrix
+
+
+def visualise_seams(image, new_shape, show_horizontal, colour):
+    """
+    Visualises the seams that would be removed when reshaping an image to new image (see example in notebook)
+    :param image: The original image
+    :param new_shape: a (height, width) tuple which is the new shape
+    :param show_horizontal: the carving scheme to be used.
+    :param colour: the colour of the seams (an array of size 3)
+    :returns: an image where the removed seams have been coloured.
+    """
+#     ###Your code here###
+#     ###**************###
+
+    # gray scale scalars
+    greyscale_wt = [0.299, 0.587, 0.114]
+
+    length_for_num_of_seams = new_shape[1]
+
+    
+    if show_horizontal:
+        image = image.transpose([1,0,2])
+        length_for_num_of_seams = new_shape[0]
+    
+    num_of_vertical_seams = image.shape[1] - length_for_num_of_seams
+
+    image = np.copy(image)
+    # gradient_image = gradient_magnitude(image, greyscale_wt)
+    # grey_image = get_greyscale_image(image, greyscale_wt)
+    # resized_image = np.zeros((new_shape[0], new_shape[1], image.shape[2]))
     edited_image = np.copy(image)
     seams_to_remove = []
-    if show_horizontal:
-        num_of_horizontal_seams = image.shape[1] - new_shape[1]
-        pass
-    else:
-        num_of_vertical_seams = image.shape[0] - new_shape[0]
-    #    num_of_vertical_seams = image.shape[1] - new_shape[1]
-        if num_of_vertical_seams < 0:
-            return "support only seam removal"
-        for i in range(num_of_vertical_seams):
-            calculated_cost_matrix = cost_matrix(edited_image, greyscale_wt)
-            seam = get_best_seam(calculated_cost_matrix)
-            seams_to_remove.append(seam)
-            edited_image = remove_seam(edited_image, seam)
-     #   seams_to_remove = coordinate_seams_to_real_location(image, seams_to_remove)
-    resized_image = paint_seams(image, seams_to_remove, colour)
+
     
+    
+    #   num_of_vertical_seams = image.shape[1] - new_shape[1]
+    if num_of_vertical_seams < 0:
+        return "support only seam removal"
+    for i in range(num_of_vertical_seams):
+         calculated_cost_matrix = cost_matrix(edited_image, greyscale_wt)
+         seam = get_best_seam(calculated_cost_matrix)
+         seams_to_remove.append(seam)
+         edited_image = remove_seam(edited_image, seam)
+    
+    # used for reshaping :)
+    if colour != -1:
+        resized_image = paint_seams(edited_image, seams_to_remove, colour)
+    else:
+        resized_image = edited_image
+
+    if show_horizontal:
+        resized_image = resized_image.transpose([1,0,2])
+
     return resized_image
-
-
+        
 def paint_seams(image, seams_to_remove, colour_to_paint):
-    for seam in seams_to_remove:
-        for place in seam:
-            image[place[0], place[1]] = colour_to_paint
+    if colour_to_paint != -1:
+        colour_to_paint = np.array(colour_to_paint)
+        image_array = [np.copy(image[i]) for i in range(image.shape[0])]
+        for seam in reversed(seams_to_remove):
+            for place in seam:
+                row = place[0]
+                col = place[1]
+                if col >= len(image_array[row]):
+                    image_array[row] = np.append(image_array[row], [colour_to_paint], axis=0)
+                
+                else:
+                    image_array[row] = np.insert(image_array[row], col, [colour_to_paint], axis=0)
+
+    # if we want to add more seams - for reshape
+    else: 
+        image_array = [np.copy(image[i]) for i in range(image.shape[0])]
+        for seam in reversed(seams_to_remove):
+            for place in seam:
+                row = place[0]
+                col = place[1]
+
+                # the only change is this line (code duplication but saves repeatedly checking the same if statement - better time complexity!)
+                colour_to_paint = np.array(image[row,col])
+
+                if col >= len(image_array[row]):
+                    image_array[row] = np.append(image_array[row], [colour_to_paint], axis=0)
+                else:
+                    image_array[row] = np.insert(image_array[row], col, [colour_to_paint], axis=0)
+
+    image = np.array(image_array, dtype=np.uint8)
     return image
-
-def coordinate_seams_to_real_location(image, seams_to_remove):
-    placement = np.zeros((image.shape[0], image.shape[1]))
-    real_seams = []
-    for seam in seams_to_remove:
-        for row,column in seam:
-#            new_seam =  
-            placement[row,column] += 1
-    pass
-
 
 def remove_seam(image, seam):
     mask = np.ones(image.shape, dtype=bool)
@@ -213,7 +235,7 @@ def get_best_seam(calculated_cost_matrix):
         if best_column == 0:
             best_column += np.argmin(calculated_cost_matrix[row, best_column : best_column + 2])
         elif best_column == (height -1):
-            best_column += np.argmin(calculated_cost_matrix[row, best_column -1 : best_column +1])
+            best_column += np.argmin(calculated_cost_matrix[row, best_column -1 : best_column +1]) - 1
         else:
             best_column += np.argmin(calculated_cost_matrix[row, (best_column -1): (best_column + 2)]) - 1
         seam.append([row,best_column])
@@ -221,93 +243,119 @@ def get_best_seam(calculated_cost_matrix):
     return seam
 
 
-def visualise_seams(image, new_shape, show_horizontal, colour):
-    """
-    Visualises the seams that would be removed when reshaping an image to new image (see example in notebook)
-    :param image: The original image
-    :param new_shape: a (height, width) tuple which is the new shape
-    :param show_horizontal: the carving scheme to be used.
-    :param colour: the colour of the seams (an array of size 3)
-    :returns: an image where the removed seams have been coloured.
-    """
-    ###Your code here###
-    ###**************###
-    # gray scale scalars
-    greyscale_wt = [0.299, 0.587, 0.114]
+# def visualise_seams(image, new_shape, show_horizontal, colour):
+#     """
+#     Visualises the seams that would be removed when reshaping an image to new image (see example in notebook)
+#     :param image: The original image
+#     :param new_shape: a (height, width) tuple which is the new shape
+#     :param show_horizontal: the carving scheme to be used.
+#     :param colour: the colour of the seams (an array of size 3)
+#     :returns: an image where the removed seams have been coloured.
+#     """
+#     ###Your code here###
+#     ###**************###
+#     # gray scale scalars
+#     greyscale_wt = [0.299, 0.587, 0.114]
 
-    # recieve gradient matrix
-    gradient_matrix = gradient_magnitude(image, greyscale_wt)
-    gradient_matrix2 = get_greyscale_image(image, greyscale_wt)
-    if show_horizontal:
-        gradient_matrix = gradient_matrix.T
+#     # recieve gradient matrix
+#     gradient_matrix = gradient_magnitude(image, greyscale_wt)
+#     gradient_matrix2 = get_greyscale_image(image, greyscale_wt)
+#     if show_horizontal:
+#         gradient_matrix = gradient_matrix.T
+#         gradient_matrix2 = gradient_matrix2.T
+#         image = np.roll(image, [1,0,2])
     
-    num_of_rows = gradient_matrix.shape[0]
-    num_of_cols = gradient_matrix.shape[1]
+#     index_matrix = np.indices((image.shape[0], image.shape[1]))
+#     num_of_rows = gradient_matrix.shape[0]
+#     num_of_cols = gradient_matrix.shape[1]
+#     num_of_vertical_seams = image.shape[0] - new_shape[0]
+#     new_image = np.copy(image)
     
 
-    # calculate cheapest paths matrix using dynamic programming
-    for row in range(1, num_of_rows):
+#     # # calculate cheapest paths matrix using dynamic programming
+#     # for row in range(1, num_of_rows):
     
-        for col in range(num_of_cols ):
-            C_u = 0
-            # when pixel is in the leftmost col
-            if col == 0:
-                # C_r = abs(gradient_matrix[row,col-1] - gradient_matrix[row,col+1]) + abs(
-                #     gradient_matrix[row-1,col] - gradient_matrix[row,col+1]
-                # )
-                # C_r = abs(gradient_matrix2[row-1,col] - gradient_matrix2[row,col+1])
-                C_r = abs(gradient_matrix2[row-1,col] - gradient_matrix2[row,col+1])
-                # C_r = 0
-                val = (gradient_matrix[row-1,col+1] + C_r,)
-            # when pixel is in the rightmost col
-            elif col == (num_of_cols - 1):
-                # C_l = abs(gradient_matrix[row,col-1] - gradient_matrix[row,col+1]) + abs(
-                #     gradient_matrix[row-1,col] - gradient_matrix[row,col-1]
-                # )
-                # C_l = abs(gradient_matrix2[row-1,col] - gradient_matrix2[row,col-1])
-                C_l = abs(gradient_matrix2[row-1,col] - gradient_matrix2[row,col-1])
-                # C_l = 0
-                val = (gradient_matrix[row-1,col-1] + C_l,)
-            # when pixel is in the middle
-            else:
-                # calculate forward cost
-                # C_u = abs(gradient_matrix2[row,col-1] - gradient_matrix2[row,col+1])
-                # C_l = abs(gradient_matrix2[row,col-1] - gradient_matrix2[row,col+1]) + abs(
-                #     gradient_matrix2[row-1,col] - gradient_matrix2[row,col-1]
-                # )
-                # C_r = abs(gradient_matrix2[row,col-1] - gradient_matrix2[row,col+1]) + abs(
-                #     gradient_matrix2[row-1,col] - gradient_matrix2[row,col+1]
-                # )
-                C_u = abs(gradient_matrix2[row,col-1] - gradient_matrix2[row,col+1])
-                C_l = abs(gradient_matrix2[row,col-1] - gradient_matrix2[row,col+1]) + abs(
-                    gradient_matrix2[row-1,col] - gradient_matrix2[row,col-1]
-                )
-                C_r = abs(gradient_matrix2[row,col-1] - gradient_matrix2[row,col+1]) + abs(
-                    gradient_matrix2[row-1,col] - gradient_matrix2[row,col+1]
-                )
-                # C_u, C_r, C_l = 0,0,0
-                val = (gradient_matrix[row-1,col+1] + C_r, gradient_matrix[row-1,col-1] + C_l)
+#     #     for col in range(num_of_cols ):
+#     #         C_u = 0
+#     #         # when pixel is in the leftmost col
+#     #         if col == 0:
+#     #             C_r = abs(gradient_matrix2[row-1,col] - gradient_matrix2[row,col+1])
+#     #             # C_r = 0
+#     #             val = (gradient_matrix[row-1,col+1] + C_r,)
+#     #         # when pixel is in the rightmost col
+#     #         elif col == (num_of_cols - 1):
+#     #             C_l = abs(gradient_matrix2[row-1,col] - gradient_matrix2[row,col-1])
+#     #             # C_l = 0
+#     #             val = (gradient_matrix[row-1,col-1] + C_l,)
+#     #         # when pixel is in the middle
+#     #         else:
+#     #             # calculate forward cost
+#     #             C_u = abs(gradient_matrix2[row,col-1] - gradient_matrix2[row,col+1])
+#     #             C_l = C_u + abs(gradient_matrix2[row-1,col] - gradient_matrix2[row,col-1])
+#     #             C_r = C_u + abs(gradient_matrix2[row-1,col] - gradient_matrix2[row,col+1])
+#     #             # C_u, C_r, C_l = 0,0,0
+#     #             val = (gradient_matrix[row-1,col+1] + C_r, gradient_matrix[row-1,col-1] + C_l)
             
 
-            min_val = min(gradient_matrix[row-1,col] + C_u, *val)
-            gradient_matrix[row,col] += min_val
+#     #         min_val = min(gradient_matrix[row-1,col] + C_u, *val)
+#     #         gradient_matrix[row,col] += min_val
     
-    # np.where(gradient_matrix == np.amin(gradient_matrix, axis=1)[num_of_rows - 1])
+#     # np.where(gradient_matrix == np.amin(gradient_matrix, axis=1)[num_of_rows - 1])
+#     for i in num_of_vertical_seams:
+#         calculate_cost_matrix(gradient_matrix, gradient_matrix2, index_matrix)
+#         new_image = pick_cheaper_seam(image, gradient_matrix, 1, colour)
+    
+#     seam_image = pick_cheaper_seam(image, gradient_matrix, 1, colour)
+#     print(2)    
+#     return seam_image
 
-    def pick_cheaper_seam(image, gradient_matrix, num_of_seams):
+# def calculate_cost_matrix(gradient_matrix, grey_image, index_matrix):
+
+#     num_of_rows = gradient_matrix.shape[0]
+#     num_of_cols = gradient_matrix.shape[1]
+#     for row in range(1, num_of_rows):
+    
+#         for col in range(num_of_cols ):
+#             C_u = 0
+#             # when pixel is in the leftmost col
+#             if col == 0:
+#                 C_r = abs(grey_image[row-1,col] - grey_image[row,col+1])
+#                 # C_r = 0
+#                 val = (gradient_matrix[row-1,col+1] + C_r,)
+#             # when pixel is in the rightmost col
+#             elif col == (num_of_cols - 1):
+#                 C_l = abs(grey_image[row-1,col] - grey_image[row,col-1])
+#                 # C_l = 0
+#                 val = (gradient_matrix[row-1,col-1] + C_l,)
+#             # when pixel is in the middle
+#             else:
+#                 # calculate forward cost
+#                 C_u = abs(grey_image[row,col-1] - grey_image[row,col+1])
+#                 C_l = C_u + abs(grey_image[row-1,col] - grey_image[row,col-1])
+#                 C_r = C_u + abs(grey_image[row-1,col] - grey_image[row,col+1])
+#                 # C_u, C_r, C_l = 0,0,0
+#                 val = (gradient_matrix[row-1,col+1] + C_r, gradient_matrix[row-1,col-1] + C_l)
+            
+
+#             min_val = min(gradient_matrix[row-1,col] + C_u, *val)
+#             gradient_matrix[row,col] += min_val
+
+def pick_cheaper_seam(image, gradient_matrix, num_of_seams):
         new_image = np.copy(image)
+        seam_list = []
         last_row = gradient_matrix[gradient_matrix.shape[0]-1]
-        # sorted_row = np.sort(last_row)
-        # cheaper_values = sorted_row[:num_of_seams]
-        # indexes = np.where(last_row == cheaper_values)
-        indexes = np.argpartition(last_row, num_of_seams)[:num_of_seams]
-        current_row = gradient_matrix.shape[0] - 1
-        # color last row
-        for i in range(num_of_seams):
-            new_image[current_row][int(indexes[i])] = np.array(colour)
+        num_of_cols = gradient_matrix.shape[1]
 
-        for col in indexes:
+        # used to select the indices the cheapers k values for the last row
+        indices = np.argpartition(last_row, num_of_seams)[:num_of_seams]
+
+        current_row = gradient_matrix.shape[0] - 1
+
+        # pick 'num_of_seams' seams from image at once
+        for col in indices:
             current_row = new_image.shape[0] - 1
+            seam = []
+            seam.append([current_row, col])
             
             while (current_row > 0):
                 min_choice_col = 0
@@ -324,20 +372,15 @@ def visualise_seams(image, new_shape, show_horizontal, colour):
                     else:
                         column = col+1
                     min_choice_col = column
-                gradient_matrix[current_row, col] = np.Infinity
+                # gradient_matrix[current_row, col] = np.Infinity
                 current_row -= 1
-                new_image[current_row, min_choice_col] = np.array(colour)
+                # build up the seam
+                seam.append([current_row, min_choice_col])
                 col = min_choice_col
-                
-        # while(current_row > 0):
-        #     for i in range(num_of_seams):
-                
-        #         new_image[current_row][indexes[i]] = colour
+            # add seam to seam's list
+            seam_list.append(seam)
 
-        return new_image
-    seam_image = pick_cheaper_seam(image, gradient_matrix, 150)
-    print(2)    
-    return seam_image
+        return seam_list
     
 def reshape_seam_crarving(image, new_shape, carving_scheme):
     """
@@ -349,105 +392,28 @@ def reshape_seam_crarving(image, new_shape, carving_scheme):
     """
     ###Your code here###
     ###**************###
+    greyscale_wt = [0.299, 0.587, 0.114]
+    #check if expending the image is needed
+    expanding_image = (carving_scheme and image.shape[1] < new_shape[0]) or (not carving_scheme and image.shape[1] < new_shape[1])
+    
+    if expanding_image:
+        if carving_scheme:
+            image = image.transpose([1,0,2])
+            num_of_seams = new_shape[0] - image.shape[1]
+        else:
+            num_of_seams = new_shape[1] - image.shape[1]
+        
+        image = np.copy(image)
+
+        gradient_matrix = gradient_magnitude(image, greyscale_wt)
+        seam_list = pick_cheaper_seam(image, gradient_matrix, num_of_seams)
+        # The '-1' flag in the 'colour' argument indicates no painting of seams is needed
+        new_image = paint_seams(image, seam_list, -1)
+
+        if carving_scheme:
+            new_image.transpose([1,0,2])
+    else: 
+        # for removal of seams 
+        # the '-1' flag in the 'colour' argument indicates no painting of seams is needed
+        new_image = visualise_seams(image, new_shape, carving_scheme, -1)
     return new_image
-
-    # def visualise_seams(image, new_shape, show_horizontal, colour):
-    # """
-    # Visualises the seams that would be removed when reshaping an image to new image (see example in notebook)
-    # :param image: The original image
-    # :param new_shape: a (height, width) tuple which is the new shape
-    # :param show_horizontal: the carving scheme to be used.
-    # :param colour: the colour of the seams (an array of size 3)
-    # :returns: an image where the removed seams have been coloured.
-    # """
-    # ###Your code here###
-    # ###**************###
-    # # gray scale scalars
-    # greyscale_wt = [0.299, 0.587, 0.114]
-
-    # # recieve gradient matrix
-    # gradient_matrix = gradient_magnitude(image, greyscale_wt)
-
-    # if show_horizontal:
-    #     gradient_matrix = gradient_matrix.T
-    
-    # num_of_rows = gradient_matrix.shape[0]
-    # num_of_cols = gradient_matrix.shape[1]
-
-    # # calculate cheapest paths matrix using dynamic programming
-    # for col in range(num_of_cols - 1):
-    #     for row in range(1, num_of_rows - 1):
-    #         C_u = 0
-    #         # when pixel is in the leftmost col
-    #         if col == 0:
-    #             C_l = abs(gradient_matrix[row,col-1] - gradient_matrix[row,col+1]) + abs(
-    #                 gradient_matrix[row-1,col] - gradient_matrix[row,col-1]
-    #             )
-    #             val = (gradient_matrix[row+1,col+1]+ C_l,)
-    #         # when pixel is in the rightmost col
-    #         elif col == (num_of_cols - 1):
-    #             C_r = abs(gradient_matrix[row,col-1] - gradient_matrix[row,col+1]) + abs(
-    #                 gradient_matrix[row-1,col] - gradient_matrix[row,col+1]
-    #             )
-    #             val = (gradient_matrix[row+1,col-1] + C_r,)
-    #         # when pixel is in the middle
-    #         else:
-    #             # calculate forward cost
-    #             C_u = abs(gradient_matrix[row,col-1] - gradient_matrix[row,col+1])
-    #             C_l = abs(gradient_matrix[row,col-1] - gradient_matrix[row,col+1]) + abs(
-    #                 gradient_matrix[row-1,col] - gradient_matrix[row,col-1]
-    #             )
-    #             C_r = abs(gradient_matrix[row,col-1] - gradient_matrix[row,col+1]) + abs(
-    #                 gradient_matrix[row-1,col] - gradient_matrix[row,col+1]
-    #             )
-    #             val = (gradient_matrix[row-1,col-1] + C_l, gradient_matrix[row+1,col-1] + C_r)
-
-    #         min_val = min(gradient_matrix[row+1,col] + C_u, *val)
-    #         gradient_matrix[row,col] += min_val
-    
-    # np.where(gradient_matrix == np.amin(gradient_matrix, axis=1)[num_of_rows - 1])
-
-    # def pick_cheaper_seam(image, gradient_matrix, num_of_seams):
-    #     new_image = np.copy(image)
-    #     last_row = gradient_matrix[gradient_matrix.shape[0]-1]
-    #     # sorted_row = np.sort(last_row)
-    #     # cheaper_values = sorted_row[:num_of_seams]
-    #     # indexes = np.where(last_row == cheaper_values)
-    #     indexes = np.argpartition(last_row, num_of_seams)[:num_of_seams]
-    #     current_row = gradient_matrix.shape[0] - 1
-    #     # color last row
-    #     for i in range(num_of_seams):
-    #         new_image[current_row][int(indexes[i])] = np.array(colour)
-
-    #     for col in indexes:
-    #         current_row = new_image.shape[0] - 1
-            
-    #         while (current_row > 0):
-    #             min_choice_col = 0
-    #             if col == 0:
-    #                 min_choice_col = col if gradient_matrix[current_row-1, col] <= gradient_matrix[current_row-1, col+1] else col + 1
-    #             elif col == new_image.shape[1]-1:
-    #                 min_choice_col = col if gradient_matrix[current_row-1, col] <= gradient_matrix[current_row-1, col-1] else col - 1
-    #             else:
-    #                 left, upper, right = gradient_matrix[current_row-1, col-1], gradient_matrix[current_row-1, col], gradient_matrix[current_row-1, col+1]
-    #                 if (upper <= left) and (upper <= right):
-    #                     column = col
-    #                 elif left <= right:
-    #                     column = col-1
-    #                 else:
-    #                     column = col+1
-    #                 min_choice_col = column
-    #             gradient_matrix[current_row, col] = 255
-    #             current_row -= 1
-    #             new_image[current_row, min_choice_col] = np.array(colour)
-    #             col = min_choice_col
-                
-    #     # while(current_row > 0):
-    #     #     for i in range(num_of_seams):
-                
-    #     #         new_image[current_row][indexes[i]] = colour
-
-    #     return new_image
-    # seam_image = pick_cheaper_seam(image, gradient_matrix, 146)
-    # print(1)    
-    # return seam_image

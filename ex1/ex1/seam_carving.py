@@ -203,7 +203,7 @@ def visualise_seams(image, new_shape, show_horizontal, colour):
 
 
 
-def paint_seams(image, seams_to_remove, colour_to_paint):
+def paint_seams(image, seam_list, colour_to_paint):
     """
         this function adds the seams provided in the 'seam_list' to the given image
         In this project its used for both painting the seams we want to remove and to enlarge the image
@@ -215,7 +215,7 @@ def paint_seams(image, seams_to_remove, colour_to_paint):
     # when we want to paint the seams in the given 'colour_to_paint' color
     if colour_to_paint != -1:
         colour_to_paint = np.array(colour_to_paint)
-        for seam in reversed(seams_to_remove):
+        for seam in reversed(seam_list):
             for place in seam:
                 row = place[0]
                 col = place[1]
@@ -227,7 +227,7 @@ def paint_seams(image, seams_to_remove, colour_to_paint):
 
     # if we want to add more seams - for reshape
     else: 
-        for seam in reversed(seams_to_remove):
+        for seam in reversed(seam_list):
             for place in seam:
                 row = place[0]
                 col = place[1]
@@ -298,7 +298,8 @@ def reshape_seam_crarving(image, new_shape, carving_scheme):
     ###Your code here###
     ###**************###
     greyscale_wt = [0.299, 0.587, 0.114]
-    #check if expending the image is needed
+
+    # check if expending the image is needed
     expanding_image = (carving_scheme and image.shape[0] < new_shape[0]) or (not carving_scheme and image.shape[1] < new_shape[1])
     
     if expanding_image:
